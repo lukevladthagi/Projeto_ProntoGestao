@@ -18,6 +18,7 @@ import {
   FileBarChart,
   Settings,
   DollarSign,
+  Network,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ import { useQuery } from '@tanstack/react-query';
 
 const navItems = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { label: 'Mapa', href: '/mapa', icon: Network },
   { label: 'Indicadores', href: '/indicadores', icon: Target },
   { label: 'Lançamentos', href: '/lancamentos', icon: ClipboardCheck },
   { label: 'Planos de Ação', href: '/planos', icon: BarChart3 },

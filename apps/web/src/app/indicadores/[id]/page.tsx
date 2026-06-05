@@ -43,6 +43,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/AppShell';
 import { IndicadorChart } from '@/components/IndicadorChart';
+import { IndicadorComparisonChart } from '@/components/IndicadorComparisonChart';
 
 type TabType = 'detalhes' | 'plano' | 'checkin' | 'historico';
 
@@ -68,6 +69,30 @@ const MESES = [
   'Novembro',
   'Dezembro',
 ];
+
+const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+type ChartViewMode = 'mensal' | 'anual' | 'acumulado' | 'comparativo';
+
+function getResultDate(result: any) {
+  return parseISO(String(result.competencia_date));
+}
+
+function getPeriodAverage(results: any[]) {
+  if (!results.length) return null;
+  const total = results.reduce((sum, result) => sum + Number(result.valor_realizado || 0), 0);
+  return total / results.length;
+}
+
+function getPeriodMeta(results: any[], fallbackMeta: number) {
+  if (!results.length) return fallbackMeta;
+  const total = results.reduce((sum, result) => sum + Number(result.meta_periodo || fallbackMeta || 0), 0);
+  return total / results.length;
+}
+
+function getPeriodSum(results: any[]) {
+  return results.reduce((sum, result) => sum + Number(result.valor_realizado || 0), 0);
+}
 
 function normalizeText(value: unknown) {
   return String(value ?? '')
@@ -136,7 +161,7 @@ export default function IndicadorDetalhesPage() {
   const { data: resultados, isLoading: loadingResults } = useQuery({
     queryKey: ['resultados', id],
     queryFn: async () => {
-      const res = await fetch(`/api/resultados?indicadorId=${id}&limit=24`);
+      const res = await fetch(`/api/resultados?indicadorId=${id}&limit=2000`);
       if (!res.ok) throw new Error('Failed to fetch results');
       return res.json();
     },
@@ -323,71 +348,274 @@ function DetalhesTab({
   loading: boolean;
   isMounted: boolean;
 }) {
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(String(currentYear));
+  const [chartView, setChartView] = useState<ChartViewMode>('mensal');
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>([currentYear]);
+
+    (resultados || []).forEach((result: any) => {
+      const year = getResultDate(result).getFullYear();
+      if (Number.isFinite(year)) years.add(year);
+    });
+
+    return Array.from(years).sort((a, b) => b - a);
+  }, [resultados, currentYear]);
+
+  useEffect(() => {
+    if (!availableYears.length) return;
+    if (!availableYears.includes(Number(selectedYear))) {
+      setSelectedYear(String(availableYears[0]));
+    }
+  }, [availableYears, selectedYear]);
+
   const chartData = useMemo(() => {
     if (!resultados) return [];
-    return [...resultados].reverse().map((r: any) => {
-      const meta = r.meta_periodo || indicador.meta;
-      const isSentidoMaior = indicador.sentido === 'Quanto maior melhor';
-      const isOnTarget = isSentidoMaior ? r.valor_realizado >= meta : r.valor_realizado <= meta;
+
+    const metaPadrao = Number(indicador.meta || 0);
+    const selectedYearNumber = Number(selectedYear);
+    const previousYear = selectedYearNumber - 1;
+    const isSentidoMaior = indicador.sentido === 'Quanto maior melhor';
+    const isOnTarget = (valor: number | null, meta: number) => {
+      if (valor == null) return false;
+      return isSentidoMaior ? valor >= meta : valor <= meta;
+    };
+
+    if (chartView === 'anual') {
+      const years = Array.from<number>(
+        new Set((resultados || []).map((result: any) => getResultDate(result).getFullYear()))
+      ).sort((a, b) => a - b);
+
+      return years.map((year) => {
+        const yearResults = resultados.filter(
+          (result: any) => getResultDate(result).getFullYear() === year
+        );
+        const valor = getPeriodAverage(yearResults);
+        const meta = getPeriodMeta(yearResults, metaPadrao);
+
+        return {
+          date: String(year),
+          valor,
+          meta,
+          isOnTarget: isOnTarget(valor, meta),
+        };
+      });
+    }
+
+    if (chartView === 'acumulado') {
+      let currentAccumulated = 0;
+      let previousAccumulated = 0;
+
+      return MESES_ABREV.map((month, index) => {
+        const currentMonthResults = resultados.filter((result: any) => {
+          const date = getResultDate(result);
+          return date.getFullYear() === selectedYearNumber && date.getMonth() === index;
+        });
+        const previousMonthResults = resultados.filter((result: any) => {
+          const date = getResultDate(result);
+          return date.getFullYear() === previousYear && date.getMonth() === index;
+        });
+
+        currentAccumulated += currentMonthResults.reduce(
+          (sum: number, result: any) => sum + Number(result.valor_realizado || 0),
+          0
+        );
+        previousAccumulated += previousMonthResults.reduce(
+          (sum: number, result: any) => sum + Number(result.valor_realizado || 0),
+          0
+        );
+
+        const hasCurrentValue = currentMonthResults.length > 0 || currentAccumulated > 0;
+        const hasPreviousValue = previousMonthResults.length > 0 || previousAccumulated > 0;
+        const meta = metaPadrao * (index + 1);
+        const valor = hasCurrentValue ? currentAccumulated : null;
+
+        return {
+          date: month,
+          valor,
+          meta,
+          comparativo: hasPreviousValue ? previousAccumulated : null,
+          isOnTarget: isOnTarget(valor, meta),
+        };
+      });
+    }
+
+    return MESES_ABREV.map((month, index) => {
+      const monthResults = resultados.filter((result: any) => {
+        const date = getResultDate(result);
+        return date.getFullYear() === selectedYearNumber && date.getMonth() === index;
+      });
+      const valor = getPeriodAverage(monthResults);
+      const meta = getPeriodMeta(monthResults, metaPadrao);
 
       return {
-        date: format(parseISO(r.competencia_date), 'MMM/yy', { locale: ptBR }),
-        valor: r.valor_realizado,
-        meta: meta,
-        isOnTarget,
+        date: month,
+        valor,
+        meta,
+        isOnTarget: isOnTarget(valor, meta),
       };
     });
-  }, [resultados, indicador]);
+  }, [resultados, indicador, selectedYear, chartView]);
+
+  const comparisonData = useMemo(() => {
+    if (!resultados) {
+      return { monthlyData: [], yearlyData: [] };
+    }
+
+    const selectedYearNumber = Number(selectedYear);
+    const previousYear = selectedYearNumber - 1;
+    let selectedYearTotal = 0;
+    let previousYearTotal = 0;
+
+    const monthlyData = MESES_ABREV.map((month, index) => {
+      const currentMonthResults = resultados.filter((result: any) => {
+        const date = getResultDate(result);
+        return date.getFullYear() === selectedYearNumber && date.getMonth() === index;
+      });
+      const previousMonthResults = resultados.filter((result: any) => {
+        const date = getResultDate(result);
+        return date.getFullYear() === previousYear && date.getMonth() === index;
+      });
+
+      const currentValue = getPeriodSum(currentMonthResults);
+      const previousValue = getPeriodSum(previousMonthResults);
+      selectedYearTotal += currentValue;
+      previousYearTotal += previousValue;
+
+      if (!currentMonthResults.length && !previousMonthResults.length) {
+        return {
+          date: month,
+          diferenca: null,
+          variacao: null,
+          isPositive: false,
+        };
+      }
+
+      const diferenca = currentValue - previousValue;
+      const variacao = previousValue === 0 ? null : (diferenca / Math.abs(previousValue)) * 100;
+
+      return {
+        date: month,
+        diferenca,
+        variacao,
+        isPositive: diferenca >= 0,
+      };
+    });
+
+    return {
+      monthlyData,
+      yearlyData: [
+        {
+          year: String(previousYear),
+          valor: previousYearTotal,
+          isCurrent: false,
+        },
+        {
+          year: String(selectedYearNumber),
+          valor: selectedYearTotal,
+          isCurrent: true,
+        },
+      ],
+    };
+  }, [resultados, selectedYear]);
+
+  const hasChartValues = chartData.some(
+    (point: any) => point.valor != null || point.comparativo != null
+  );
+  const hasComparisonValues =
+    comparisonData.monthlyData.some((point: any) => point.diferenca != null) ||
+    comparisonData.yearlyData.some((point: any) => point.valor !== 0);
 
   if (loading) return <Skeleton className="h-[400px] w-full rounded-xl" />;
 
-  if (!chartData.length) {
+  if (chartView !== 'comparativo' && !hasChartValues) {
     return (
       <div className="bg-white rounded-xl border p-12 text-center">
         <BarChart3 className="h-12 w-12 text-slate-200 mx-auto mb-3" />
-        <p className="text-slate-500 font-medium">Nenhum resultado lançado ainda</p>
+        <p className="text-slate-500 font-medium">Nenhum resultado lancado ainda</p>
         <p className="text-sm text-slate-400 mt-1">
-          Faça o primeiro check-in na aba correspondente.
+          Faca o primeiro check-in na aba correspondente.
         </p>
       </div>
     );
   }
 
-  const metaLine = indicador.meta;
+  const previousYear = Number(selectedYear) - 1;
+  const chartTitle =
+    chartView === 'anual'
+      ? 'Evolucao por ano'
+      : chartView === 'acumulado'
+        ? `Acumulado ${selectedYear} x ${previousYear}`
+        : chartView === 'comparativo'
+          ? `Comparativo ${selectedYear} x ${previousYear}`
+        : 'Evolucao';
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-slate-800">Evolução do Indicador</h2>
-        <div className="flex items-center gap-4 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded bg-green-500" /> Na meta
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded bg-red-400" /> Fora da meta
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-1.5 h-3 border-t-2 border-dashed border-blue-500" />{' '}
-            Meta
-          </span>
+    <div className="bg-white rounded-xl border p-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-lg font-bold text-slate-800">{chartTitle}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          {chartView !== 'anual' && (
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="h-11 min-w-28 rounded-full bg-slate-50 px-4">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map((year) => (
+                  <SelectItem key={year} value={String(year)}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Select value={chartView} onValueChange={(value) => setChartView(value as ChartViewMode)}>
+            <SelectTrigger className="h-11 min-w-36 rounded-full bg-slate-50 px-4">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mensal">Mensal</SelectItem>
+              <SelectItem value="anual">Anual</SelectItem>
+              <SelectItem value="acumulado">Acumulado</SelectItem>
+              <SelectItem value="comparativo">Comparativo</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border p-6">
-        {isMounted && (
-          <div style={{ width: '100%', height: 400 }}>
-            <IndicadorChart
-              data={chartData}
-              metaLine={metaLine}
-              unidadeMedida={indicador.unidade_medida || ''}
-            />
-          </div>
-        )}
-      </div>
+      {isMounted && chartView === 'comparativo' && hasComparisonValues && (
+        <IndicadorComparisonChart
+          monthlyData={comparisonData.monthlyData}
+          yearlyData={comparisonData.yearlyData}
+          unidadeMedida={indicador.unidade_medida || ''}
+        />
+      )}
+
+      {isMounted && chartView === 'comparativo' && !hasComparisonValues && (
+        <div className="rounded-lg border border-dashed p-10 text-center">
+          <BarChart3 className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+          <p className="text-sm font-medium text-slate-500">
+            Ainda nao ha dados suficientes para comparar este ano com o ano anterior.
+          </p>
+        </div>
+      )}
+
+      {isMounted && chartView !== 'comparativo' && (
+        <div style={{ width: '100%', height: 400 }}>
+          <IndicadorChart
+            data={chartData}
+            realizadoLabel={
+              chartView === 'acumulado' ? `Acumulado ${selectedYear}` : `Realizado ${selectedYear}`
+            }
+            comparativoLabel={`${previousYear}`}
+            unidadeMedida={indicador.unidade_medida || ''}
+          />
+        </div>
+      )}
     </div>
   );
 }
-
 /* ===================== PLANO DE AÇÃO TAB ===================== */
 function PlanoAcaoTab({ indicador, planos, loading, queryClient }: any) {
   const [isModalOpen, setIsModalOpen] = useState(false);
