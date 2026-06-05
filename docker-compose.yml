@@ -1,0 +1,16 @@
+services:
+  pronto-gestao:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pronto-gestao:latest
+    container_name: pronto-gestao
+    restart: unless-stopped
+    env_file:
+      - ./apps/web/.env.production
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 4000
+    ports:
+      - "4000:4000"

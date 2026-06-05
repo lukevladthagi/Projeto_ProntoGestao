@@ -37,6 +37,8 @@ const trustedOrigins = [
     : null,
 ].filter((v): v is string => Boolean(v));
 
+const useSecureCookies = process.env.AUTH_SECURE_COOKIES !== 'false';
+
 export const auth = betterAuth({
   database: pool,
   trustedOrigins,
@@ -61,7 +63,7 @@ export const auth = betterAuth({
     cookiePrefix: 'better-auth',
     defaultCookieAttributes: {
       sameSite: 'none', // Required for iframes
-      secure: true,
+      secure: useSecureCookies,
       httpOnly: true,
       path: '/',
     },
@@ -69,7 +71,7 @@ export const auth = betterAuth({
       sessionToken: {
         attributes: {
           sameSite: 'none', // Required for iframes
-          secure: true,
+          secure: useSecureCookies,
         },
       },
     },
