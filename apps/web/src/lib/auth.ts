@@ -38,6 +38,7 @@ const trustedOrigins = [
 ].filter((v): v is string => Boolean(v));
 
 const useSecureCookies = process.env.AUTH_SECURE_COOKIES !== 'false';
+const sameSitePolicy = useSecureCookies ? 'none' : 'lax';
 
 export const auth = betterAuth({
   database: pool,
@@ -62,7 +63,7 @@ export const auth = betterAuth({
   advanced: {
     cookiePrefix: 'better-auth',
     defaultCookieAttributes: {
-      sameSite: 'none', // Required for iframes
+      sameSite: sameSitePolicy, // "none" is required for HTTPS iframes; HTTP internal deploys need "lax".
       secure: useSecureCookies,
       httpOnly: true,
       path: '/',
@@ -70,7 +71,7 @@ export const auth = betterAuth({
     cookies: {
       sessionToken: {
         attributes: {
-          sameSite: 'none', // Required for iframes
+          sameSite: sameSitePolicy,
           secure: useSecureCookies,
         },
       },
