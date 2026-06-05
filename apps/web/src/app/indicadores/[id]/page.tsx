@@ -74,8 +74,12 @@ const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Se
 
 type ChartViewMode = 'mensal' | 'anual' | 'acumulado' | 'comparativo';
 
-function getResultDate(result: any) {
-  return parseISO(String(result.competencia_date));
+function getResultYear(result: any) {
+  return Number(String(result.competencia_date).slice(0, 4));
+}
+
+function getResultMonth(result: any) {
+  return Number(String(result.competencia_date).slice(5, 7)) - 1;
 }
 
 function getPeriodAverage(results: any[]) {
@@ -356,7 +360,7 @@ function DetalhesTab({
     const years = new Set<number>([currentYear]);
 
     (resultados || []).forEach((result: any) => {
-      const year = getResultDate(result).getFullYear();
+      const year = getResultYear(result);
       if (Number.isFinite(year)) years.add(year);
     });
 
@@ -384,12 +388,12 @@ function DetalhesTab({
 
     if (chartView === 'anual') {
       const years = Array.from<number>(
-        new Set((resultados || []).map((result: any) => getResultDate(result).getFullYear()))
+        new Set((resultados || []).map((result: any) => getResultYear(result)))
       ).sort((a, b) => a - b);
 
       return years.map((year) => {
         const yearResults = resultados.filter(
-          (result: any) => getResultDate(result).getFullYear() === year
+          (result: any) => getResultYear(result) === year
         );
         const valor = getPeriodAverage(yearResults);
         const meta = getPeriodMeta(yearResults, metaPadrao);
@@ -409,12 +413,10 @@ function DetalhesTab({
 
       return MESES_ABREV.map((month, index) => {
         const currentMonthResults = resultados.filter((result: any) => {
-          const date = getResultDate(result);
-          return date.getFullYear() === selectedYearNumber && date.getMonth() === index;
+          return getResultYear(result) === selectedYearNumber && getResultMonth(result) === index;
         });
         const previousMonthResults = resultados.filter((result: any) => {
-          const date = getResultDate(result);
-          return date.getFullYear() === previousYear && date.getMonth() === index;
+          return getResultYear(result) === previousYear && getResultMonth(result) === index;
         });
 
         currentAccumulated += currentMonthResults.reduce(
@@ -443,8 +445,7 @@ function DetalhesTab({
 
     return MESES_ABREV.map((month, index) => {
       const monthResults = resultados.filter((result: any) => {
-        const date = getResultDate(result);
-        return date.getFullYear() === selectedYearNumber && date.getMonth() === index;
+        return getResultYear(result) === selectedYearNumber && getResultMonth(result) === index;
       });
       const valor = getPeriodAverage(monthResults);
       const meta = getPeriodMeta(monthResults, metaPadrao);
@@ -470,12 +471,10 @@ function DetalhesTab({
 
     const monthlyData = MESES_ABREV.map((month, index) => {
       const currentMonthResults = resultados.filter((result: any) => {
-        const date = getResultDate(result);
-        return date.getFullYear() === selectedYearNumber && date.getMonth() === index;
+        return getResultYear(result) === selectedYearNumber && getResultMonth(result) === index;
       });
       const previousMonthResults = resultados.filter((result: any) => {
-        const date = getResultDate(result);
-        return date.getFullYear() === previousYear && date.getMonth() === index;
+        return getResultYear(result) === previousYear && getResultMonth(result) === index;
       });
 
       const currentValue = getPeriodSum(currentMonthResults);
