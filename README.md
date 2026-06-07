@@ -119,7 +119,7 @@ corepack yarn workspace web typecheck
 No servidor do Hospital Prontocardio, o ProntoGestão está publicado em Docker:
 
 ```text
-http://192.168.4.45:4000
+http://x.x.x.x:4000
 ```
 
 Container:
