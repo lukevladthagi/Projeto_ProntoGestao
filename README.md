@@ -1,23 +1,24 @@
-# Projeto ProntoGestao
+# Projeto ProntoGestão
 
-Projeto de sistema responsavel por gerenciar indicadores e orcamento da unidade hospitalar.
+Sistema web do Hospital Prontocardio para gestão de indicadores, orçamento, check-ins operacionais, planos de ação e acompanhamento de desempenho das áreas.
 
-Sistema web para gestao de indicadores, check-ins periodicos, planos de acao, orcamento, relatorios e configuracoes operacionais.
+O ProntoGestão foi criado para centralizar informações de gestão hospitalar, permitindo que a liderança acompanhe metas, resultados, pendências e ações corretivas em um único ambiente.
 
-## Visao Geral
+## Visão Geral
 
-O projeto foi gerado a partir do Anything e esta organizado como um monorepo Yarn. A aplicacao principal fica em `apps/web` e roda com Next.js na porta `4000`.
+O projeto está organizado como um monorepo Yarn. A aplicação principal fica em `apps/web` e roda com Next.js na porta `4000`.
 
-Principais modulos:
+Principais módulos:
 
-- Dashboard de indicadores
-- Cadastro e acompanhamento de indicadores
-- Check-in mensal/semanal de resultados
-- Historico de lancamentos
-- Planos de acao para indicadores fora da meta
-- Orcamento
-- Relatorios
-- Configuracoes, usuarios, perfis e integracoes
+- Dashboard de indicadores.
+- Cadastro e acompanhamento de indicadores.
+- Check-ins mensais e periódicos.
+- Histórico de lançamentos.
+- Planos de ação para indicadores fora da meta.
+- Orçamento e acompanhamento financeiro.
+- Relatórios gerenciais.
+- Configurações operacionais.
+- Gestão de usuários, perfis e permissões.
 
 ## Stack
 
@@ -27,48 +28,53 @@ Principais modulos:
 - React
 - TypeScript
 - Tailwind CSS
-- Neon/PostgreSQL
+- PostgreSQL/Neon
 - Better Auth
 - TanStack Query
 - Recharts
+- Docker
 
 ## Estrutura
 
 ```text
 .
 +-- apps/
-|   +-- web/       # Aplicacao web Next.js
-|   +-- mobile/    # Aplicacao mobile/Expo gerada pelo Anything
-+-- publisher/     # Scripts auxiliares de publicacao/build
-+-- package.json   # Workspaces e resolucoes do monorepo
+|   +-- web/       # Aplicação web Next.js
+|   +-- mobile/    # Aplicação mobile/Expo gerada pelo Anything
++-- publisher/     # Scripts auxiliares de publicação/build
++-- Dockerfile     # Build de produção
++-- docker-compose.yml
++-- package.json   # Workspaces e resoluções do monorepo
 +-- yarn.lock
 ```
 
 ## Requisitos
 
-- Node.js LTS instalado
-- Git instalado
-- Acesso a um banco PostgreSQL/Neon
-- Yarn via Corepack
+- Node.js LTS
+- Git
+- Corepack/Yarn
+- Acesso ao banco PostgreSQL/Neon
+- Docker, caso vá rodar em produção ou ambiente semelhante ao servidor
 
-Verifique as versoes:
+Verifique as versões:
 
 ```powershell
 node --version
 corepack --version
 git --version
+docker --version
 ```
 
-## Configuracao Local
+## Configuração Local
 
-Na raiz do projeto, habilite o Corepack e instale as dependencias:
+Na raiz do projeto, habilite o Corepack e instale as dependências:
 
 ```powershell
 corepack enable
 corepack yarn install
 ```
 
-Crie o arquivo `apps/web/.env` com as variaveis necessarias:
+Crie o arquivo `apps/web/.env` com as variáveis necessárias:
 
 ```env
 DATABASE_URL="postgresql://usuario:senha@host/banco?sslmode=require"
@@ -76,11 +82,11 @@ BETTER_AUTH_URL="http://localhost:4000"
 ANYTHING_PROJECT_TOKEN="seu_token_do_anything"
 ```
 
-Nunca envie o `.env` para o GitHub. Ele ja esta listado no `.gitignore`.
+Nunca envie arquivos `.env` para o GitHub.
 
-## Rodando o Projeto
+## Rodando Localmente
 
-Para iniciar a aplicacao web:
+Para iniciar a aplicação web:
 
 ```powershell
 corepack yarn workspace web dev
@@ -92,38 +98,66 @@ Acesse:
 http://localhost:4000
 ```
 
-## Scripts Uteis
+## Scripts Úteis
 
 ```powershell
 # Desenvolvimento web
 corepack yarn workspace web dev
 
-# Build da aplicacao web
+# Build da aplicação web
 corepack yarn workspace web build
 
-# Iniciar build de producao
+# Iniciar build de produção
 corepack yarn workspace web start
 
 # Checagem TypeScript
 corepack yarn workspace web typecheck
 ```
 
-## Banco de Dados
+## Deploy Atual
 
-A aplicacao usa PostgreSQL/Neon por meio da variavel `DATABASE_URL`.
-
-Observacoes importantes:
-
-- A tabela `resultados` deve manter apenas um lancamento por `indicador_id` e `competencia_date`.
-- Foi criado um indice unico para evitar duplicidade de check-ins no mesmo periodo.
-- Ao lancar novamente o mesmo mes/ano, a API atualiza o registro existente em vez de criar outro.
-
-## Git
-
-Repositorio remoto:
+No servidor do Hospital Prontocardio, o ProntoGestão está publicado em Docker:
 
 ```text
-https://github.com/lukevladthagi/Projeto_ProntoGestao
+http://192.168.4.45:4000
+```
+
+Container:
+
+```text
+pronto-gestao
+```
+
+Porta:
+
+```text
+4000 -> 4000
+```
+
+O `docker-compose.yml` usa o arquivo:
+
+```text
+apps/web/.env.production
+```
+
+Esse arquivo contém variáveis sensíveis e não deve ser versionado.
+
+## Banco de Dados
+
+A aplicação usa PostgreSQL/Neon por meio da variável `DATABASE_URL`.
+
+Observações importantes:
+
+- A tabela `resultados` deve manter apenas um lançamento por `indicador_id` e `competencia_date`.
+- Há controle para evitar duplicidade de check-ins no mesmo período.
+- Ao lançar novamente o mesmo mês/ano, a API atualiza o registro existente quando aplicável.
+
+## Fluxo Git
+
+Repositório remoto:
+
+```text
+https://github.com/lukevladthagi/Projeto_ProntoGestao.git
 ```
 
 Fluxo sugerido:
@@ -131,13 +165,20 @@ Fluxo sugerido:
 ```powershell
 git status
 git add .
-git commit -m "Descricao da alteracao"
+git commit -m "Descrição da alteração"
 git push
 ```
 
-## Notas de Seguranca
+## Segurança
 
-- Nao commitar `.env`, tokens, senhas ou strings reais de conexao.
+- Não commitar `.env`, tokens, senhas ou strings reais de conexão.
 - Se uma credencial for exposta acidentalmente, revogue-a e gere uma nova.
-- Use variaveis de ambiente no ambiente de hospedagem.
+- Use variáveis de ambiente no ambiente de hospedagem.
+- Controle permissões por perfil para evitar acesso indevido a dados sensíveis.
 
+## Próximos Passos Sugeridos
+
+- Revisar perfis de acesso por área.
+- Documentar rotinas de backup do banco.
+- Adicionar auditoria de alterações críticas.
+- Criar rotina de homologação antes de publicação em produção.
